@@ -1,0 +1,211 @@
+#!/usr/bin/perl -w
+
+# Program to reformat a LaTeX document according to the following rules:
+#
+# 1. Each sentence is on its own line
+# 2. Change-of-state commands are on their own line
+# 3. Long pieces of inline maths are on their own line
+# 4. Within an array-like environment, entries are on their own line
+#    if long, otherwise lines are on their own lines.
+#
+# The other overarching principle is: the original author is
+# intelligent.  Therefore, if unsure, leave alone.
+#
+# We also don't touch the preamble
+
+#### Configurable variables
+
+# how long should inline maths be before it gets its own line?
+my $shortmath = 8;
+
+# ditto for array-like environments
+my $shortarray = 8;
+
+# what are the "array-like" environments?  Each is a regexp, each will
+# also match the '*' form.
+my @arrays = ("align", "multline", "gather", "array", "eqnarray", ".?matrix");
+
+### End of configurable variables
+
+# Build the array-like environments into a regular expression
+
+my $arraybegin = '\\\\begin\{(' . join("|", @arrays) . ')\*?\}';
+my $arrayend = '\\\\end\{(' . join("|", @arrays) . ')\*?\}';
+
+# Regular expression to match a line that separates paragraphs.
+# Copied from Emacs, had to translate \> to \b and $$ seemed in the
+# wrong place (needed preceeding backslash in Emacs version).
+
+my $parstart = ' \$\$ |
+                 \\\\[][] |
+                 \\\\ ( begin | 
+                        chapter | 
+                        end | 
+                        label | 
+                        par (?:agraph|t) |
+                        s (?:ection | 
+                             ub (?:paragraph |
+                                   s(?:(?:ubs)?ection)
+                                )
+                          )
+                      ) \b |
+                 \\\\ ( bibitem |
+                        caption | 
+                        footnote |
+                        item |
+                        marginpar |
+                        n(?:ew(?:(?:lin|pag)e)|oindent) |
+                        parbox |
+                        [a-z]* ( space |
+                                 skip |
+                                 page[a-z]*
+                               ) \b
+                      ) \s* ($|%)';
+
+
+my $parsep = '^(?: [\f%] | \s* (?: $ | ' . $parstart . '))';
+
+# Actually, we work on the previous line
+my $previous = "";
+
+# And we don't start until we get out of the preamble
+my $preamble = 1;
+
+while (!eof()) {
+    $_ = <>;
+
+    /^[^%]*\\begin\{document\}/ and ($preamble = 0);
+
+    if ($preamble) {
+	print;
+    } else {
+
+	# Do we remove the eol from the previous line?  Check the
+	# current line against the paragraph separator and remove the
+	# eol if it doesn't match.
+
+	if (!/^$parsep/x
+	    and ($previous !~ /%/)
+	    and ($previous !~ /^\s*$/)) {
+	    # This line does not appear to start a paragraph, so we
+	    # ought to chomp the previous one.  There are two cases
+	    # where we don't: if the previous line was (essentially)
+	    # blank then we don't chomp it, and if the previous line
+	    # ended in a comment then we don't.  If we do chomp, we
+	    # add a whitespace to ensure that the whitespace count is
+	    # not effected.
+	    chomp($previous) and
+		$previous .=  " ";
+	}
+
+	# does $previous have an eol?
+
+	if ($previous =~ /\n/) {
+	    &output($previous);
+	    $previous = "";
+	}
+
+	$previous .= $_;
+
+    }
+}
+
+&output($previous);
+
+exit 0;
+
+sub output {
+    my ($line) = @_;
+
+
+    # Yes, process further for output
+
+    # So much for removing eols, do we want to add any in?  While
+    # we're at it, we may as well compress spaces.
+
+    $line =~ s/^ +//;
+    $line =~ s/  +/ /g;
+
+    # Rule 1.  New sentence, new line.
+
+    $line =~ s/([a-z)}]\.) +/$1\n/g;
+
+    # Rule 2.  Change-of-state get their own line.  Need to include
+    # any arguments on that line.
+
+    if ($line =~ s/(^$parstart)//x) {
+	print STDERR $1 . "\n";
+	my $newline = $1;
+	my $nextarg;
+	($nextarg, $line) = &nextarg($line);
+	while ($nextarg !~ /^ *$/) {
+	    $newline .= $nextarg;
+	    ($nextarg, $line) = &nextarg($line);
+	}
+	$line = $newline . "\n" . $line;
+    }
+
+
+
+    # Rule 3.  Long inline maths is on its own line.
+
+    # Break on starting maths:
+
+    $line =~ s/[\n\s]+(\S*(?:\\\(|\$))/\n$1/g;
+
+    # If the closing delimeter occurs less than $shortmath from the
+    # start, remove the break; otherwise add an ending break.
+	    
+    $line =~ s/(^\S*(?:\\\(|\$).{$shortmath,}\\\)\S*) */$1\n/mg;
+    $line =~ s/\n(\S*(?:\\\(|\$).{0,$shortmath}\\\)\S*)/ $1/g;
+
+    # Finally, make sure we haven't inadvertantly added a double eol
+
+    $line =~ s/\n+/\n/g;
+
+    print $line;
+}
+
+
+# Extract the next token from the string
+sub nextarg {
+    my ($string) = @_;
+    my $first = "";
+
+# Bail out if we didn't actually get anything
+    return ("", "") unless ($string);
+
+    if ($string =~ s/^\{//s) {
+# We need to match a closing brace, but they have to be balanced.
+	my $c = 1;
+	$first = "{";
+	while ($c > 0) {
+	    $string =~ s/^(.*?})//s;
+	    $first .= $1;
+# Count the number of opening and closing braces in $first
+	    $c = ($first =~ tr/{/{/) - ($first =~ tr/}/}/);
+	}
+	return ($first, $string);
+    }
+
+    if ($string =~ s/^\[//s) {
+# We need to match a closing brace, but they have to be balanced.
+	my $c = 1;
+	$first = "[";
+	while ($c > 0) {
+	    $string =~ s/^(.*?])//s;
+	    $first .= $1;
+# Count the number of opening and closing braces in $first
+	    $c = ($first =~ tr/[/[/) - ($first =~ tr/]/]/);
+	}
+	return ($first, $string);
+    }
+
+    
+
+# All else, just return first character
+
+    $string =~ s/(.)//s;
+
+    return ($1, $string);
+}
