@@ -205,20 +205,6 @@ sub output {
 
     $line =~ s/([^A-Z]\.|^\.|\?|!) +/$1\n/g;
 
-    # Rule 2.  Change-of-state get their own line.  Need to include
-    # any arguments on that line.
-
-    if ($line =~ s/($state)//x) {
-	my $newline = $1;
-	my $nextarg;
-	($nextarg, $line) = &nextarg($line);
-	while ($nextarg !~ /^ *$/) {
-	    $newline .= $nextarg;
-	    ($nextarg, $line) = &nextarg($line);
-	}
-	$line = $newline . "\n" . $line;
-    }
-
     # Rule 3.  Long inline maths is on its own line.
 
     # Break on starting maths:
@@ -235,9 +221,13 @@ sub output {
     # entries if long enough.  Ought to make this the same throughout
     # the table but that involves remembering too much information.
 
-    # Break after & and \\'s:
+    # Break after & and \\'s.
+    # We want to ensure that we don't _add_ any whitespace here so if there
+    # wasn't any originally we add a comment string before the eol.  Also,
+    # don't break if we are already (effectively) broken.
 
-    $line =~ s/(\&|\\\\)\s*/$1\n/g;
+    $line =~ s/(\&|\\\\)\s+(?!%|$)/$1\n/g;
+    $line =~ s/(\&|\\\\)(?!\s|%|$)/$1%\n/g;
 
     # If two adjacent column entries are shorter than the given
     # minimum length, remove the eol between them.  Can't just add 'g'
@@ -245,6 +235,22 @@ sub output {
     # together and so need to backtrack.
 
     while ($line =~ s/(^.{0,$shortarray}\&)\n(.{0,$shortarray}(?:\&|\\\\|\n))/$1 $2/s) {};
+
+    # Rule 2.  Change-of-states that occur at the start of a line get their
+    # own line.  Need to include any arguments on that line.
+
+    my $newline = "";
+    while ($line =~ s/($state)//x) {
+	$newline .= $1;
+	my $nextarg;
+	($nextarg, $line) = &nextarg($line);
+	while ($nextarg !~ /^ *$/) {
+	    $newline .= $nextarg;
+	    ($nextarg, $line) = &nextarg($line);
+	}
+	$newline .= "\n";
+    }
+    $line = $newline . $line;
 
     # Make sure we haven't inadvertantly _added_ a double eol or any
     # excessive whitespace
@@ -259,15 +265,23 @@ sub output {
 	my @lines = split("\n", $line);
 	for (my $i = 0; $i <= $#lines; $i++) {
 # If the line _starts_ with an ascender or an \item, cancel an indent
-	    my $offset = ($lines[$i] =~ /^(?:$ascend|\\item)/x ? 1 : 0);
-	    $lines[$i] = $indent x ($curindent - $offset) . $lines[$i];
+	    my $offset = ($lines[$i] =~ /^(?:$ascend|\\item)/x ? -1 : 0);
+# If the line _starts_ with inline maths, add an indent.  Note this and the
+# previous can't _both_ match so we're okay setting $offset to 1 if this
+# matches.
+	    $offset = ($lines[$i] =~ /^\s*\\\(/ ? 1 : $offset);
+	    $lines[$i] = $indent x ($curindent + $offset) . $lines[$i];
 
 # Count the ascenders and descenders in the line to get the current
-# indent for the next line
-	    while ($lines[$i] =~ /$descend/gx) {
+# indent for the next line.
+# Actually work on a 'decommentised' version of the line so that stuff in
+# comments doesn't effect the count.
+	    my $decomment = $lines[$i];
+	    $decomment =~ s/%.*//;
+	    while ($decomment =~ /$descend/gx) {
 		$curindent++;
 	    }
-	    while ($lines[$i] =~ /$ascend/gx) {
+	    while ($decomment =~ /$ascend/gx) {
 		$curindent--;
 	    }
 	}
