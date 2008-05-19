@@ -1,0 +1,8 @@
+2008-05-19  Andrew Edgell Stacey  <andrew.stacey@math.ntnu.no>
+
+	* fmtlatex: Improved detection of preamble so that it detects the
+	start of the preamble as well as the end (via 'documentclass').
+	Added a switch to force processing of preamble.
+	Comments on their own line are never indented, and whitespace
+	between the start of a line and a % is ignored.
+

@@ -36,6 +36,7 @@ my (
     $ascend,
     $previous,
     $preamble,
+    $dopreamble,
     $curindent,
     $man,
     $help,
@@ -60,6 +61,7 @@ $indent = " ";
 # Commandline options
 
 GetOptions (
+    "p|preamble" => \$dopreamble,
     "i|indent=i" => sub {my ($a, $b) = @_; $indent = $indent x $b;},
     "m|math=i" => \$shortmath,
     "a|array=i" => \$shortarray,
@@ -84,8 +86,9 @@ exec 'perldoc perlgpl' if $gpl;
 # If the start of the line matches something here then it is not part
 # of the previous paragraph.
 
-$parsep = '^ (?: [\f%] |
+$parsep = '^ (?: \f |
                     \s* (?: $        |
+                            %        |
                             \$\$     |
                             \\\\[][] |
                             \\\\ (?: b(?:egin   | ibitem)            |
@@ -145,22 +148,23 @@ $ascend =  ' \\\\ \]     |
 # Actually, we work on the previous line
 $previous = "";
 
-# We don't start until we get out of the preamble
-$preamble = 1;
-
 # And we start with no indentation
 $curindent = 0;
 
 while (<>) {
 
-    # Skip up to the first non-trivial '\begin{document}'
+    # Skip between '\documentclass' and '\begin{document}'
+
+    if (/^[^%]*\\documentclass\b/) {
+	$preamble = 1;
+    }
 
     if (s/^([^%]*\\begin\{document\})\s*//) {
 	print $1 . "\n";
 	$preamble = 0;
     }
 
-    $preamble and print and next;
+    $dopreamble or $preamble and print and next;
 
     # Do we remove the eol from the previous line?  Check the current
     # line against the paragraph separator and remove the eol if it
@@ -288,6 +292,10 @@ sub output {
 	$line = join("\n", @lines) . "\n";
     }
 
+# Finally, don't indent comments
+
+    $line =~ s/^ +%/%/;
+
     print $line;
 }
 
@@ -348,6 +356,7 @@ Format [FILES] or standard input according to the rules, modified by [OPTIONS] i
 Example: fmtlatex < paper.tex > paper.fmt.tex
 
  Options:
+  -p, --preamble    process the preamble
   -m, --math NUM    inline math longer than NUM gets its own line
                     (default: 20)
   -a, --array NUM   array-like entries longer than NUM get their own line
@@ -380,6 +389,10 @@ Minor modification of the algorithm can be done by changing the values of certai
 =head1 OPTIONS
 
 =over 8
+
+=item B<-p, --preamble>
+
+Determines whether or not to process the preamble.  The default is to skip the preamble (everything between C<documentclass> and C<begin{document}>).
 
 =item B<-m NUM, --math NUM>
 
