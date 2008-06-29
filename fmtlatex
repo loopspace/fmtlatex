@@ -201,6 +201,11 @@ exit 0;
 
 sub output {
     my ($line) = @_;
+    my $comment = "";
+    chomp($line);
+
+    $line =~ s/(%.*)// and $comment = $1;
+    
 
     # So much for removing eols, do we want to add any in?
 
@@ -296,7 +301,8 @@ sub output {
 
     $line =~ s/^ +%/%/;
 
-    print $line;
+    chomp($line);
+    print $line . $comment . "\n";
 }
 
 
