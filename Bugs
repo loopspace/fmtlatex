@@ -1,0 +1,11 @@
+The following produces an extra blank line:
+
+some text leading up to
+%
+  \(
+  x^2 + y^2 = z^2
+  \)
+%
+a fantastic formula
+
+Removing any of the indents or removing the comment line removes the fault.
