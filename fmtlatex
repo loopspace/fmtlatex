@@ -217,8 +217,11 @@ sub output {
     # Rule 3.  Long inline maths is on its own line.
 
     # Break on starting maths:
+    #
+    # Must have a whitespace to break on, and don't break if the break
+    # point is already at the start
 
-    $line =~ s/[\n\s]+(\S*(?:\\\(|\$))/\n$1/g;
+    $line =~ s/([^\n\s])[\n\s]+(\S*(?:\\\(|\$))/$1\n$2/g;
 
     # If the closing delimeter occurs less than $shortmath from the
     # start, remove the break; otherwise add an ending break.
