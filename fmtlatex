@@ -152,15 +152,18 @@ $previous = "";
 $curindent = 0;
 
 while (<>) {
-
     # Skip between '\documentclass' and '\begin{document}'
 
     if (/^[^%]*\\documentclass\b/) {
+	if ($previous) {
+	    &output($previous);
+	    $previous = "";
+	}
 	$preamble = 1;
     }
 
     if (s/^([^%]*\\begin\{document\})\s*//) {
-	print $1 . "\n";
+	$dopreamble and $preamble and print $1 . "\n";
 	$preamble = 0;
     }
 
@@ -183,16 +186,13 @@ while (<>) {
 	chomp($previous) and
 	    $previous .=  " ";
     }
-
     # does $previous have an eol?
 
     if ($previous =~ /\n/) {
 	&output($previous);
 	$previous = "";
     }
-
     $previous .= $_;
-
 }
 
 &output($previous);
@@ -204,8 +204,7 @@ sub output {
     my $comment = "";
     chomp($line);
 
-    $line =~ s/(%.*)// and $comment = $1;
-    
+    $line =~ s/(?:^|(?<=[^\\]))(%.*)// and $comment = $1;
 
     # So much for removing eols, do we want to add any in?
 
@@ -263,7 +262,6 @@ sub output {
 	$newline .= "\n";
     }
     $line = $newline . $line;
-
     # Make sure we haven't inadvertantly _added_ a double eol or any
     # excessive whitespace
 
@@ -321,7 +319,7 @@ sub nextarg {
 # We need to ensure that the braces are balanced.
 	$first = $1;
 	my $c = ($first =~ tr/{/{/) - ($first =~ tr/}/}/);
-	while ($c > 0) {
+	while ($c > 0 && $string =~ /}/) {
 	    $string =~ s/^(.*?})//s;
 	    $first .= $1;
 # Count the number of opening and closing braces in $first
@@ -334,7 +332,7 @@ sub nextarg {
 # We need to ensure that the curly braces are balanced.
 	$first = $1;
 	my $c = ($first =~ tr/{/{/) - ($first =~ tr/}/}/);
-	while ($c > 0) {
+	while ($c > 0 && $string =~ /\]/) {
 	    $string =~ s/^(.*?])//s;
 	    $first .= $1;
 # Count the number of opening and closing braces in $first
@@ -342,7 +340,6 @@ sub nextarg {
 	}
 	return ($first, $string);
     }
-
 # All else, just return first character
 
     $string =~ s/(.)//s;
