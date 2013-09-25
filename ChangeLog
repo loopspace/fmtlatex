@@ -1,3 +1,15 @@
+2013-09-25  Andrew Stacey  <andrew.stacey@math.ntnu.no>
+
+	* fmtlatex: The argument slurper broke if the argument ended
+	several lines after it began.  Fixed this by adding a checker to
+	see if there are any closing braces/brackets still on the line and
+	bailing out if not.
+
+	Due to the way it works (always on the previous line), the line
+	before `\documentclass` got put after `\begin{document}` if the
+	preamble was being skipped.  So when we meet `\documentclass` then
+	we flush the output to prevent this.
+
 2009-07-08  Andrew Edgell Stacey  <andrew.stacey@math.ntnu.no>
 
 	* fmtlatex: Added a caveat to breaking at start of maths:
