@@ -183,8 +183,9 @@ while (<>) {
 	# previous line ended in a comment then we don't.  If we do
 	# chomp, we add a whitespace to ensure that the whitespace
 	# count is not effected.
-	chomp($previous) and
+	if ($previous =~ s/[\r\n]+$//) {
 	    $previous .=  " ";
+	}
     }
     # does $previous have an eol?
 
@@ -202,7 +203,8 @@ exit 0;
 sub output {
     my ($line) = @_;
     my $comment = "";
-    chomp($line);
+    $line =~ s/[\r\n]+$//;
+
 
     $line =~ s/(?:^|(?<=[^\\]))(%.*)// and $comment = $1;
 
@@ -302,7 +304,7 @@ sub output {
 
     $line =~ s/^ +%/%/;
 
-    chomp($line);
+    $line =~ s/[\r\n]+$//;
     print $line . $comment . "\n";
 }
 
