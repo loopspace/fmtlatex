@@ -163,7 +163,7 @@ while (<>) {
     }
 
     if (s/^([^%]*\\begin\{document\})\s*//) {
-	$dopreamble and $preamble and print $1 . "\n";
+	$dopreamble or $preamble and print $1 . "\n";
 	$preamble = 0;
     }
 
